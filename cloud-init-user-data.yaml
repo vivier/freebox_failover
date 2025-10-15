@@ -1,0 +1,60 @@
+#cloud-config
+ssh_authorized_keys:
+  - ssh-rsa XXXXXX
+
+system_info:
+  default_user:
+    name: freebox
+    # passwd is freebox, generate a new one with mkpasswd --method=SHA-512 --rounds=4096
+    passwd: $6$rounds=4096$TWMyNF365GbkiHih$NCGKVPbiLKn03a5hNurvHnMGQnzUDSPjLK6zsjfdtM.WI5J0nB054AF72Qb1jb0zp8sLnl61V0ui9Ks4iT2xA1
+    lock_passwd: false
+  groups:
+    - freebox
+
+packages:
+ - usbutils
+ - nftables
+
+write_files:
+# enable IPv4 and IPv6 forwarding
+- content: |
+    net.ipv4.ip_forward=1
+    net.ipv6.conf.all.forwarding=1
+    net.ipv6.conf.usb0.accept_ra=2
+    net.ipv6.conf.eth0.accept_ra_defrtr=0
+  path: /etc/sysctl.d/99-ipforward.conf
+# Enabling masquerading and forwarding
+- content: |
+    table ip nat {
+            chain POSTROUTING {
+                    type nat hook postrouting priority srcnat; policy accept;
+                    oif "usb0" masquerade
+            }
+    }
+    table ip6 nat {
+            chain POSTROUTING {
+                    type nat hook postrouting priority srcnat; policy accept;
+                    oif "usb0" masquerade
+            }
+    }
+    table inet filter {
+            chain forward {
+                    type filter hook forward priority filter; policy drop;
+                    iif "eth0" oif "usb0" ct state established,related,new accept
+                    iif "usb0" oif "eth0" ct state established,related accept
+                    iif "eth0" oif "eth0" accept
+                    accept
+            }
+    }
+  path: /etc/nftables.conf
+
+runcmd:
+  - [bash, -lc, 'dnf install -y kernel-modules-$(uname -r)' ]
+  - [bash, -lc, 'modprobe cdc_ether' ]
+  - [bash, -lc, 'sysctl --system' ]
+  - [bash, -lc, 'nmcli con mod "cloud-init eth0" ipv6.never-default yes' ]
+  - [bash, -lc, 'nmcli con mod "cloud-init eth0" +ipv6.addresses fd00:1234::1/64' ]
+  - [bash, -lc, 'nmcli con down "cloud-init eth0"' ]
+  - [bash, -lc, 'nmcli con up "cloud-init eth0"' ]
+  - [bash, -lc, 'nft -f /etc/nftables.conf' ]
+

@@ -1,0 +1,18 @@
+[Unit]
+Description=Freebox Failover Daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/bin/freebox_failover.py
+WorkingDirectory=/etc
+Restart=always
+RestartSec=5
+
+# Run as root since raw sockets, ARP/NDP, and systemd-journal access are required
+User=root
+
+[Install]
+WantedBy=multi-user.target
+
