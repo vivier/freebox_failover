@@ -17,6 +17,7 @@ import os, sys
 import requests, json
 import hashlib, hmac
 import time, threading
+from datetime import datetime
 from scapy.all import (
     get_if_hwaddr, Ether, ARP, sendp, conf, sniff, in6_getifaddr,
     IPv6, ICMPv6ND_NS, ICMPv6ND_NA, ICMPv6ND_RA, ICMPv6NDOptMTU,
@@ -34,6 +35,10 @@ DEVICE_NAME	= "linux"
 
 failover_active = threading.Event()
 stop_thread	= threading.Event()
+
+def timestamp():
+    """Create an ISO-like timestamp"""
+    return f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]"
 
 parser = argparse.ArgumentParser(
     description="Freebox Failover Daemon - monitors Freebox WAN state and "
@@ -72,10 +77,10 @@ elif args.log_output == "stderr":
     import sys
 
     def log(msg):
-        print(msg, file=sys.stderr)
+        print(f"{timestamp()} {msg}", file=sys.stderr)
 else:
     def log(msg):
-        print(msg)
+        print(f"{timestamp()} {msg}")
 
 config = configparser.ConfigParser()
 config.read('freebox_failover.conf')
