@@ -24,9 +24,12 @@ from scapy.all import (
     ICMPv6NDOptSrcLLAddr, ICMPv6NDOptPrefixInfo, ICMPv6NDOptRDNSS
 )
 import ipaddress
+import ping3
 import urllib.parse, urllib.request
 import argparse
 import configparser
+
+ping3.EXCEPTIONS = True
 
 APP_ID		= "free_wifi_gateway"
 APP_NAME	= "Free Wifi Gateway"
@@ -101,9 +104,17 @@ FAILOVER_PREFIX = config.get('ipv6', 'prefix', fallback='fd00:1234::/64').strip(
 RDNSS_LIST = [s for s in config.get('ipv6', 'rdnss', fallback='').split() if s]
 ROUTER_LIFETIME = config['ipv6'].getint('router_lifetime', fallback=30)
 
-
-
 API_URL		= f"http://{FREEBOX_IP}/api/v8"
+
+def check_connectivity(host="8.8.8.8", count=1, timeout=0.5):
+    """Use ping to check backup connectivity"""
+    try:
+        reply = ping3.ping(host, timeout=timeout)
+    except ping3.errors.PingError as exc:
+        log(f"Connectivity check error: {exc}")
+        return False
+    log(f"Connectivity check succeeded to {host}")
+    return True
 
 def send_SMS(message):
     """Send an SMS notification via the Free Mobile SMS API.
@@ -669,6 +680,10 @@ def main():
     ------------
     Runs indefinitely until interrupted; logs to journald; sends SMS alerts.
     """
+
+    if not check_connectivity():
+        log("Connectivity check failed, exiting.")
+        return
 
     session_token = freebox_connect()
     if not session_token:
