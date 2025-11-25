@@ -149,24 +149,19 @@ def load_app_token():
     tuple[str|None, str|None]
         (app_token, track_id) if present; (None, None) otherwise.
     """
-    if os.path.exists(TOKEN_FILE):
-        with open(TOKEN_FILE, "r") as file:
+    if not os.path.exists(TOKEN_FILE):
+        return None, None
+
+    try:
+        with open(TOKEN_FILE, "r", encoding="utf-8") as file:
             data = json.load(file)
             return data["app_token"], data["track_id"]
+    except (json.JSONDecodeError, KeyError) as exc:
+        log(f"Token file invalid ({TOKEN_FILE}): {exc}. Delete and re-register.")
+    except OSError as exc:
+        log(f"Could not read token file {TOKEN_FILE}: {exc}")
+
     return None, None
-
-def save_app_token(app_token, track_id):
-    """Persist Freebox application token and track_id to disk.
-
-    Parameters
-    ----------
-    app_token : str
-        Token issued by the Freebox authorization step.
-    track_id : str
-        Tracking identifier returned by the authorization API.
-    """
-    with open(TOKEN_FILE, "w") as file:
-        json.dump({"app_token": app_token, "track_id": track_id}, file)
 
 def api_request(method, endpoint, session_token=None, **kwargs):
     """Call a Freebox OS API endpoint and return its `result` payload.
@@ -219,8 +214,7 @@ def api_request(method, endpoint, session_token=None, **kwargs):
 def freebox_connect():
     """Establish a Freebox OS API session token.
 
-    1) Load stored app token/track_id; otherwise request authorization and poll
-       until the user approves the app on the Freebox.
+    1) Load stored app token/track_id from the token file; fail if absent.
     2) Compute HMAC-SHA1 password from challenge and app_token.
     3) Open a login session and return the session token.
 
@@ -231,45 +225,37 @@ def freebox_connect():
 
     Side Effects
     ------------
-    May persist the app token to disk. Logs status messages to journald.
+    Logs status messages to journald.
     """
-    # Charger le token depuis le fichier ou obtenir une nouvelle autorisation
     app_token, track_id = load_app_token()
     if not app_token or not track_id:
-        auth_data = api_request("post", "/login/authorize/", json={
-            "app_id": APP_ID, "app_name": APP_NAME,
-            "app_version": APP_VERSION, "device_name": DEVICE_NAME
-        })
-        if not auth_data: return None
-        track_id, app_token = auth_data['track_id'], auth_data['app_token']
-        save_app_token(app_token, track_id)
-        log("Veuillez accepter l'application sur la Freebox")
-        max_retries = 24
-        for i in range(max_retries):
-            status_data = api_request("get", f"/login/authorize/{track_id}")
-            status = status_data.get('status') if status_data else None
-            if status == 'granted':
-                log("Authorization granted.")
-                break
-            elif status == 'pending':
-                log("Waiting for authorization...")
-                time.sleep(5)
-            else:
-                log(f"Authorization failed with status: {status}")
-                return None
-        else:
-            log("Authorization polling timed out after 2 minutes.")
-            return None
+        log("App token missing. Run freebox_failover_register.py before starting.")
+        return None
 
     challenge_data = api_request("get", f"/login/authorize/{track_id}")
+    if challenge_data == "forbidden":
+        log("Freebox rejected stored app token (403). Delete token file and re-register.")
+        return None
     if not challenge_data or not isinstance(challenge_data, dict):
         log("Failed to get challenge, token might be invalid.")
         return None
-    challenge = challenge_data['challenge']
+    challenge = challenge_data.get('challenge')
+    if not challenge:
+        log("Challenge missing from Freebox response.")
+        return None
+
     password = hmac.new(app_token.encode(), challenge.encode(), hashlib.sha1).hexdigest()
 
-    login_data = api_request("post", "/login/session/", json={"app_id": APP_ID, "password": password})
-    return login_data['session_token'] if login_data else None
+    login_data = api_request("post", "/login/session/",
+                             json={"app_id": APP_ID, "password": password})
+    if login_data == "forbidden":
+        log("Login forbidden – app token probably revoked. Re-register and retry.")
+        return None
+    if not isinstance(login_data, dict):
+        log("Unexpected login response format.")
+        return None
+
+    return login_data.get('session_token')
 
 def freebox_get_link_state(session_token):
     """Return the WAN link state string from the Freebox.
@@ -723,7 +709,8 @@ def main():
                 if new_token:
                     session_token = new_token
                 else:
-                    log("Failed to re-login. Will try again later.")
+                    log("Failed to re-login. Exiting; re-register token first.")
+                    break
 
                 time.sleep(CHECK_PERIOD_S * 2)
                 continue
