@@ -85,8 +85,12 @@ else:
     def log(msg):
         print(f"{timestamp()} {msg}")
 
+if not os.path.exists(args.config):
+    log(f"Configuration file {args.config} does not exist.")
+    sys.exit(1)
+
 config = configparser.ConfigParser()
-config.read('freebox_failover.conf')
+config.read(args.config)
 
 FREEMOBILE_USER = config['SMS']['user']
 FREEMOBILE_PASS = config['SMS']['pass']
