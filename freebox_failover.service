@@ -5,10 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /usr/local/bin/freebox_failover.py
+ExecStart=/usr/bin/python3 /usr/bin/freebox_failover.py
 WorkingDirectory=/etc
-Restart=always
-RestartSec=5
 
 # Run as root since raw sockets, ARP/NDP, and systemd-journal access are required
 User=root

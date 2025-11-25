@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "freebox-failover"
+version = "0.0.1"
+description = "Freebox failover daemon and Free Mobile SMS notifier"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "Laurent Vivier" }, { email = "laurent@vivier.eu" }]
+dependencies = [
+    "requests",
+    "scapy",
+    "systemd-python",
+    "ping3",
+]
+
+[tool.setuptools]
+py-modules = ["freebox_failover", "freebox_failover_register"]
+script-files = ["freebox_failover.py", "freebox_failover_register.py"]
+include-package-data = true
+
+[tool.setuptools.data-files]
+"/etc" = ["freebox_failover.conf"]
+"/etc/default" = ["systemd/freebox_failover.env"]
+"/usr/lib/systemd/system" = ["freebox_failover.service"]
+"/usr/share/freebox-failover" = ["cloud-init-user-data.yaml"]
