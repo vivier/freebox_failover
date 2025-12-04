@@ -10,6 +10,17 @@ Pour créer la machine virtuelle la méthode la plus simble est d'utiliser le sc
 freeboxvm install -n FreeboxFailover  --vcpus 1 --memory 512 --console --cloud-init --cloud-init-hostname freeboxfailover --cloud-init-userdata cloud-init-user-data.yaml -i fedora40 --disk freeboxfailover.qcow2 --disk-size 2g --usb-ports usb-external-type-a
 ```
 
+## Installer depuis copr
+
+1. Activer le dépot copr
+   ```
+   sudo dnf copr enable lvivier/freebox-failover
+   ```
+2. Installer les packages
+   ```
+   sudo dnf install freeboxvm freebox-failover
+   ```
+
 ## Construire l'archive source (.tar.gz)
 
 1. Installer l'outil de build Python (dans un venv de préférence) :
@@ -28,7 +39,6 @@ freeboxvm install -n FreeboxFailover  --vcpus 1 --memory 512 --console --cloud-i
    ```
    sudo dnf install -y rpm-build pyproject-rpm-macros python3-devel python3-wheel python3-requests python3-scapy python3-systemd
    ```
-   (Si `python3dist(ping3)` n'est pas disponible, empaquetez/installez-le depuis PyPI avant le build.)
 2. Construire directement depuis l'archive source :
    ```
    rpmbuild -ta dist/freebox_failover-0.0.1.tar.gz
