@@ -110,14 +110,16 @@ ROUTER_LIFETIME = config['ipv6'].getint('router_lifetime', fallback=30)
 
 API_URL		= f"http://{FREEBOX_IP}/api/v8"
 
-def check_connectivity(host="8.8.8.8", count=1, timeout=0.5):
+HOST_PING_CHECK="212.27.48.10"
+CHECK_THRESHOLD_S=CHECK_PERIOD_S * 10
+
+def check_connectivity(host="8.8.8.8", timeout=0.5):
     """Use ping to check backup connectivity"""
     try:
         reply = ping3.ping(host, timeout=timeout)
     except ping3.errors.PingError as exc:
         log(f"Connectivity check error: {exc}")
         return False
-    log(f"Connectivity check succeeded to {host}")
     return True
 
 def send_SMS(message):
@@ -671,9 +673,11 @@ def main():
     Runs indefinitely until interrupted; logs to journald; sends SMS alerts.
     """
 
-    if not check_connectivity():
+    if not check_connectivity(host=HOST_PING_CHECK):
         log("Connectivity check failed, exiting.")
         return
+    else:
+        log(f"Connectivity check succeeded to {HOST_PING_CHECK}")
 
     session_token = freebox_connect()
     if not session_token:
@@ -697,6 +701,7 @@ def main():
 
     down_since = None
     up_since = None
+    check_since = time.time()
 
     try:
         while True:
@@ -729,6 +734,11 @@ def main():
                     log(f"Freebox DOWN (state {state})")
                     switch_to_backup_gateway("Down")
                     send_SMS(f"Freebox DOWN (state {state})")
+
+            if (now - check_since) >= CHECK_THRESHOLD_S:
+                check_since = now
+                if not check_connectivity(host=HOST_PING_CHECK):
+                    log("Warning: backup link is down")
 
             time.sleep(CHECK_PERIOD_S)
     except KeyboardInterrupt:
