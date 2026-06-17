@@ -25,6 +25,8 @@ write_files:
   path: /etc/sysctl.d/99-ipforward.conf
 # Enabling masquerading and forwarding
 - content: |
+    flush ruleset
+
     table ip nat {
             chain POSTROUTING {
                     type nat hook postrouting priority srcnat; policy accept;
@@ -43,18 +45,17 @@ write_files:
                     iif "eth0" oif "usb0" ct state established,related,new accept
                     iif "usb0" oif "eth0" ct state established,related accept
                     iif "eth0" oif "eth0" accept
-                    accept
             }
     }
-  path: /etc/nftables.conf
+  path: /etc/sysconfig/nftables.conf
 
 runcmd:
   - [bash, -lc, 'dnf install -y kernel-modules-$(uname -r)' ]
   - [bash, -lc, 'modprobe cdc_ether' ]
   - [bash, -lc, 'sysctl --system' ]
+  - [bash, -lc, 'nmcli con mod "cloud-init eth0" ipv4.never-default yes' ]
   - [bash, -lc, 'nmcli con mod "cloud-init eth0" ipv6.never-default yes' ]
   - [bash, -lc, 'nmcli con mod "cloud-init eth0" +ipv6.addresses fd00:1234::1/64' ]
   - [bash, -lc, 'nmcli con down "cloud-init eth0"' ]
   - [bash, -lc, 'nmcli con up "cloud-init eth0"' ]
-  - [bash, -lc, 'nft -f /etc/nftables.conf' ]
-
+  - [bash, -lc, 'systemctl enable --now nftables' ]
