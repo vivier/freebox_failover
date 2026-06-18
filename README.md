@@ -10,6 +10,91 @@ Pour créer la machine virtuelle la méthode la plus simple est d'utiliser le sc
 freeboxvm install -n FreeboxFailover  --vcpus 1 --memory 512 --console --cloud-init --cloud-init-hostname freeboxfailover --cloud-init-userdata cloud-init-user-data.yaml -i fedora40 --disk freeboxfailover.qcow2 --disk-size 2g --usb-ports usb-external-type-a
 ```
 
+## Configurer `freebox_failover.conf`
+
+Le daemon lit `/etc/freebox_failover.conf` par défaut. Le fichier
+`freebox_failover.conf` fourni dans ce dépôt sert de modèle:
+
+```
+sudo cp freebox_failover.conf /etc/freebox_failover.conf
+sudo chmod 600 /etc/freebox_failover.conf
+sudo editor /etc/freebox_failover.conf
+```
+
+Exemple de configuration:
+
+```ini
+[SMS]
+user = 12345678
+pass = XXXXXXXXXXXXXX
+
+[freebox]
+token_file = /etc/freebox_app_token.json
+lan_iface = eth0
+ip = 192.168.100.254
+ipv6ll = fe80::1
+
+[failover]
+check = 10
+down = 20
+up = 30
+garp = 3
+
+[ipv6]
+# ULA/GUA à annoncer aux clients pendant le failover.
+prefix = fd00:1234::/64
+# DNS IPv6 optionnels à annoncer, séparés par des espaces. Laisser vide
+# pour ne pas annoncer de DNS.
+rdnss = 2620:fe::fe 2001:4860:4860::8888
+# Durée de vie RA, en secondes, pendant le failover.
+router_lifetime = 30
+```
+
+Adaptez au minimum les identifiants SMS, `lan_iface`, `ip`, `ipv6ll`, `prefix`
+et `rdnss` à votre réseau.
+
+Les valeurs importantes sont:
+
+### `[SMS]`
+
+| Paramètre | Description |
+| --- | --- |
+| `user` | Identifiant de l'API SMS Free Mobile utilisé pour envoyer les alertes. Il se récupère dans l'espace abonné Free Mobile, dans l'option "Notifications par SMS". |
+| `pass` | Clé API SMS Free Mobile. |
+
+### `[freebox]`
+
+| Paramètre | Description |
+| --- | --- |
+| `token_file` | Chemin du fichier JSON créé par `freebox_failover_register.py`. Le service doit pouvoir le lire; gardez-le sous `/etc` avec des permissions restrictives. |
+| `lan_iface` | Interface LAN de la VM, connectée au réseau de la Freebox. Dans les exemples de ce README et dans `cloud-init-user-data.yaml`, cette interface est `eth0`. |
+| `ip` | Adresse IPv4 LAN de la Freebox. C'est l'adresse que la VM annonce temporairement par Gratuitous ARP lorsque la ligne tombe. |
+| `ipv6ll` | Adresse IPv6 link-local de la Freebox (`fe80::...`). Le daemon essaie de la relire via l'API Freebox et utilise cette valeur comme référence ou repli. Si vous ne la connaissez pas, lancez le daemon en mode debug: elle apparaît dans les logs au démarrage, par exemple dans les lignes `Starting failover monitor` et `Network handler started`. |
+
+### `[failover]`
+
+| Paramètre | Description |
+| --- | --- |
+| `check` | Intervalle, en secondes, entre deux lectures de l'état de la ligne Freebox. |
+| `down` | Durée continue pendant laquelle la ligne doit rester down avant d'activer le failover. |
+| `up` | Durée continue pendant laquelle la ligne doit rester up avant de rendre la main à la Freebox. |
+| `garp` | Intervalle d'envoi des annonces ARP, Neighbor Advertisements et Router Advertisements pendant le failover. |
+
+### `[ipv6]`
+
+| Paramètre | Description |
+| --- | --- |
+| `prefix` | Préfixe IPv6 annoncé sur le LAN pendant le failover pour que les clients configurent une adresse SLAAC. Utilisez un préfixe ULA (`fd00::/8`) ou un préfixe global qui vous appartient. |
+| `rdnss` | Serveurs DNS IPv6 annoncés dans les Router Advertisements. Laissez vide pour ne pas annoncer de DNS IPv6. |
+| `router_lifetime` | Durée, en secondes, pendant laquelle les clients gardent la VM comme routeur IPv6 par défaut après une annonce RA. |
+
+Après modification du fichier, enregistrez l'application Freebox et créez le
+fichier de token:
+
+```
+sudo python3 freebox_failover_register.py -c /etc/freebox_failover.conf
+```
+
 ## Configurer la VM comme passerelle de secours
 
 Si la VM est créée avec l'option `--cloud-init-userdata cloud-init-user-data.yaml` de la commande ci-dessus, la configuration sysctl, nftables et IPv6 décrite ici est déjà installée par `cloud-init-user-data.yaml`. Les commandes suivantes documentent ce que fait le fichier cloud-init et permettent de vérifier ou de refaire la configuration manuellement.
