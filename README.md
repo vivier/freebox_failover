@@ -88,12 +88,36 @@ Les valeurs importantes sont:
 | `rdnss` | Serveurs DNS IPv6 annoncés dans les Router Advertisements. Laissez vide pour ne pas annoncer de DNS IPv6. |
 | `router_lifetime` | Durée, en secondes, pendant laquelle les clients gardent la VM comme routeur IPv6 par défaut après une annonce RA. |
 
-Après modification du fichier, enregistrez l'application Freebox et créez le
-fichier de token:
+### Enregistrer l'application Freebox
+
+Avant de démarrer le daemon, lancez `freebox_failover_register.py` une fois
+pour autoriser l'application auprès de Freebox OS:
 
 ```
 sudo python3 freebox_failover_register.py -c /etc/freebox_failover.conf
 ```
+
+Le script utilise l'adresse `[freebox] ip` pour contacter l'API Freebox, puis
+demande l'autorisation de l'application `Free Wifi Gateway`. Validez la demande
+sur l'écran de la Freebox quand le script affiche
+`Veuillez accepter l'application sur la Freebox`.
+
+Une fois l'autorisation accordée, le script écrit le token dans le fichier
+indiqué par `[freebox] token_file`, par défaut `/etc/freebox_app_token.json`.
+Ce fichier est créé avec des permissions restrictives et doit rester privé. Le
+daemon le relit ensuite à chaque démarrage pour ouvrir une session Freebox OS.
+
+Si vous voulez stocker le token ailleurs que dans la configuration, utilisez
+l'option `-t`:
+
+```
+sudo python3 freebox_failover_register.py \
+    -c /etc/freebox_failover.conf \
+    -t /etc/freebox_app_token.json
+```
+
+Si la Freebox refuse le token ou si l'autorisation a été révoquée, supprimez le
+fichier de token puis relancez `freebox_failover_register.py`.
 
 ## Configurer la VM comme passerelle de secours
 
