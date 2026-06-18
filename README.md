@@ -119,6 +119,18 @@ sudo python3 freebox_failover_register.py \
 Si la Freebox refuse le token ou si l'autorisation a été révoquée, supprimez le
 fichier de token puis relancez `freebox_failover_register.py`.
 
+### Options de `freebox_failover.py`
+
+Ces options ne sont pas des paramètres du fichier `.conf`; elles permettent de
+choisir le fichier de configuration, de surcharger le chemin du token ou de
+changer la destination des logs au lancement du daemon.
+
+| Option | Description |
+| --- | --- |
+| `-c`, `--config` | Chemin du fichier de configuration. Par défaut: `/etc/freebox_failover.conf`. |
+| `-t`, `--token-file` | Chemin du fichier token Freebox. Cette option remplace `[freebox] token_file` si elle est fournie. |
+| `-l`, `--log-output` | Destination des logs: `stdout`, `stderr` ou `journald`. Par défaut: `stdout`. |
+
 ## Configurer la VM comme passerelle de secours
 
 Si la VM est créée avec l'option `--cloud-init-userdata cloud-init-user-data.yaml` de la commande ci-dessus, la configuration sysctl, nftables et IPv6 décrite ici est déjà installée par `cloud-init-user-data.yaml`. Les commandes suivantes documentent ce que fait le fichier cloud-init et permettent de vérifier ou de refaire la configuration manuellement.
